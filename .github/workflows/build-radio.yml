@@ -1,0 +1,72 @@
+name: Build Taiji Pi S3 PDM Radio
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    container:
+      image: espressif/idf:v6.0.2
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find and extract source ZIP
+        shell: bash
+        run: |
+          set -e
+
+          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: source ZIP not found"
+            exit 1
+          fi
+
+          echo "Using: $ZIP_FILE"
+
+          rm -rf /tmp/xiaozhi-source
+          mkdir -p /tmp/xiaozhi-source
+
+          unzip -q "$ZIP_FILE" -d /tmp/xiaozhi-source
+
+          SRC_DIR=$(find /tmp/xiaozhi-source -mindepth 1 -maxdepth 1 -type d | head -n 1)
+
+          if [ -z "$SRC_DIR" ]; then
+            echo "ERROR: source directory not found"
+            exit 1
+          fi
+
+          cp -a "$SRC_DIR"/. .
+
+          echo "Source extracted successfully"
+          ls -la
+
+      - name: Build Taiji Pi S3 PDM
+        shell: bash
+        run: |
+          set -e
+
+          source "$IDF_PATH/export.sh"
+
+          python scripts/build.py taiji-pi-s3 --name taiji-pi-s3-pdm
+
+      - name: Check firmware
+        shell: bash
+        run: |
+          set -e
+          test -f build/merged-binary.bin
+          ls -lh build/merged-binary.bin
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiaozhi-2.5.0-taiji-pdm-radio
+          path: build/merged-binary.bin
+          if-no-files-found: error
